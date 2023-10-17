@@ -96,12 +96,10 @@ class Predictor(BasePredictor):
 
         img = Image.open(image)
         input_image = self.scale_down_image(image, 1024)
-        input_image.save("out-1.png")
 
         mas = Image.open(mask)
         # Assume mask is same size as input image
         mask_image = mas.resize((input_image.width, input_image.height))
-        mask_image.save("out-2.png")
 
         result = self.pipe(
             prompt=prompt,
