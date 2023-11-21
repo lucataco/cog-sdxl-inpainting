@@ -37,7 +37,7 @@ class Predictor(BasePredictor):
         ),
         negative_prompt: str = Input(
             description="Specify things to not see in the output",
-            default="poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, bad anatomy, signature, cut off, low contrast, underexposed, overexposed, bad art, beginner, amateur, distorted face, blurry, draft, grainy",
+            default="poorly drawn hands, poorly drawn feet, poorly drawn face, poorly drawn eyes, extra limbs, disfigured, deformed, bad anatomy, distorted text, incorrect text spelling",
         ),
         num_outputs: int = Input(
             description="Number of images to output. > 2 might generate out-of-memory errors.",
