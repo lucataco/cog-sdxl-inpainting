@@ -71,7 +71,7 @@ class Predictor(BasePredictor):
 
 
         #Resize Image for inpaint processing.
-        image = Image.open(image).convert("RGB").resize((512, 512))
+        image = Image.open(image).convert("RGB").resize((1024, 1024))
         extra_kwargs = {
             "mask_image": Image.open(mask).convert("RGB").resize(image.size),
             "image": image
