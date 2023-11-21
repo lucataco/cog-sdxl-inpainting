@@ -1,29 +1,16 @@
 # Prediction interface for Cog
-from cog import BasePredictor, Input, Path
 import os
 import math
 import torch
+from cog import BasePredictor, Input, Path
+from diffusers import AutoPipelineForInpainting
 from PIL import Image
-from diffusers import (AutoPipelineForInpainting,
-    DDIMScheduler,
-    DPMSolverMultistepScheduler,
-    EulerAncestralDiscreteScheduler, 
-    EulerDiscreteScheduler,
-    HeunDiscreteScheduler, 
-    PNDMScheduler
-)
+from typing import List
 
+# Stable Diffusion v2 with inpainting. Mask generation presented in LAMA in
+# combination with latent VAE representation of the masked image.
 MODEL_NAME = "stabilityai/stable-diffusion-2-inpainting"
 MODEL_CACHE = "model-cache"
-
-SCHEDULERS = {
-    "DDIM": DDIMScheduler,
-    "DPMSolverMultistep": DPMSolverMultistepScheduler,
-    "HeunDiscrete": HeunDiscreteScheduler,
-    "K_EULER_ANCESTRAL": EulerAncestralDiscreteScheduler,
-    "K_EULER": EulerDiscreteScheduler,
-    "PNDM": PNDMScheduler,
-}
 
 class Predictor(BasePredictor):
     def setup(self) -> None:
@@ -36,6 +23,14 @@ class Predictor(BasePredictor):
 
     def predict(
         self,
+        image: Path = Input(
+            description="Input image to inpaint.",
+            default=None,
+        ),
+        mask: Path = Input(
+            description="Black and white image to use as mask for inpainting over the image provided. White-colored regions are inpainted and black-colored regions are preserved",
+            default=None,
+        ),
         prompt: str = Input(
             description="Input prompt",
             default="nike shoes in billboard",
@@ -43,13 +38,6 @@ class Predictor(BasePredictor):
         negative_prompt: str = Input(
             description="Specify things to not see in the output",
             default="poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, bad anatomy, signature, cut off, low contrast, underexposed, overexposed, bad art, beginner, amateur, distorted face, blurry, draft, grainy",
-        ),
-        image: Path = Input(
-            description="Input image to inpaint.",
-            default=None,
-        ),
-        mask: Path = Input(
-            description="Black and white image to use as mask for inpainting over the image provided. White-colored regions are inpainted and black-colored regions are preserved",
         ),
         num_outputs: int = Input(
             description="Number of images to output. > 2 might generate out-of-memory errors.",
@@ -62,12 +50,19 @@ class Predictor(BasePredictor):
             default=0,
         ),
         num_inference_steps: int = Input(
-            description="Number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference", ge=1, le=500, default=100
+            description="Number of denoising steps. More denoising steps usually lead to a higher quality image at the expense of slower inference",
+            ge=1,
+            le=500,
+            default=100,
         ),
         guidance_scale: float = Input(
-            description="A higher guidance scale value generate images closely to the text prompt at the expense of lower image quality. Guidance scale is enabled when guidance_scale > 1.", ge=1, le=20, default=7.5
+            description="A higher guidance scale value generate images closely to the text prompt at the expense of lower image quality. Guidance scale is enabled when guidance_scale > 1.",
+            ge=1,
+            le=20,
+            default=7.5,
         ),
-    ) -> Path:
+    ) -> List[Path]:
+
         """Run a single prediction on the model"""
         if (seed is None) or (seed <=0):
             seed = int.from_bytes(os.urandom(2), "big")
@@ -75,6 +70,7 @@ class Predictor(BasePredictor):
         print(f"Using seed: {seed}")
 
 
+        #Resize Image for inpaint processing.
         image = Image.open(image).convert("RGB").resize((512, 512))
         extra_kwargs = {
             "mask_image": Image.open(mask).convert("RGB").resize(image.size),
@@ -97,4 +93,10 @@ class Predictor(BasePredictor):
             sample.save(output_path)
             output_paths.append(Path(output_path))
 
+        if len(output_paths) == 0:
+            raise Exception(
+                f"NSFW content detected. Try running it again, or try a different prompt."
+            )
+        
+        print("Prediction complete")
         return output_paths
