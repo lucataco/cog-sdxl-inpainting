@@ -1,10 +1,12 @@
 # Prediction interface for Cog
 from cog import BasePredictor, Input, Path
-from typing import List
 import os
 import math
+import time
 import torch
+import subprocess
 from PIL import Image
+from typing import List
 from diffusers import (AutoPipelineForInpainting,
     DDIMScheduler,
     DPMSolverMultistepScheduler,
@@ -15,7 +17,8 @@ from diffusers import (AutoPipelineForInpainting,
 )
 
 MODEL_NAME = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
-MODEL_CACHE = "model-cache"
+MODEL_CACHE = "checkpoints"
+MODELS_URL = "https://weights.replicate.delivery/default/diffusers/sdxl-inpainting-0.1.tar"
 
 SCHEDULERS = {
     "DDIM": DDIMScheduler,
@@ -26,14 +29,25 @@ SCHEDULERS = {
     "PNDM": PNDMScheduler,
 }
 
+def download_weights(url, dest):
+    start = time.time()
+    print("downloading url: ", url)
+    print("downloading to: ", dest)
+    subprocess.check_call(["pget", "-x", url, dest], close_fds=False)
+    print("downloading took: ", time.time() - start)
+
+
 class Predictor(BasePredictor):
     def setup(self) -> None:
         """Load the model into memory to make running multiple predictions efficient"""
+        print("Downloading weights")
+        if not os.path.exists(MODEL_CACHE):
+            download_weights(MODELS_URL, MODEL_CACHE)
         self.pipe = AutoPipelineForInpainting.from_pretrained(
             MODEL_NAME,
-            cache_dir=MODEL_CACHE,
             torch_dtype=torch.float16,
-            variant="fp16"
+            variant="fp16",
+            cache_dir=MODEL_CACHE,
         ).to("cuda")
 
     def scale_down_image(self, image_path, max_size):
@@ -64,10 +78,10 @@ class Predictor(BasePredictor):
     def predict(
         self,
         image: Path = Input(description="Input image"),
-        mask: Path = Input(description="Mask image"),
+        mask: Path = Input(description="Mask image - make sure it's the same size as the input image"),
         prompt: str = Input(
             description="Input prompt",
-            default="An astronaut riding a rainbow unicorn",
+            default="modern bed with beige sheet and pillows",
         ),
         negative_prompt: str = Input(
             description="Input Negative Prompt",
@@ -91,7 +105,7 @@ class Predictor(BasePredictor):
         num_outputs: int = Input(
             description="Number of images to output. Higher number of outputs may OOM.",
             ge=1,
-            le=8,
+            le=4,
             default=1,
         ),
     ) -> List[Path]:
@@ -102,12 +116,10 @@ class Predictor(BasePredictor):
         generator = torch.Generator("cuda").manual_seed(seed)
         self.pipe.scheduler = SCHEDULERS[scheduler].from_config(self.pipe.scheduler.config)
 
-        img = Image.open(image)
         input_image = self.scale_down_image(image, 1024)
-
-        mas = Image.open(mask)
+        pil_mask = Image.open(mask)
         # Assume mask is same size as input image
-        mask_image = mas.resize((input_image.width, input_image.height))
+        mask_image = pil_mask.resize((input_image.width, input_image.height))
 
         result = self.pipe(
             prompt=[prompt] * num_outputs if prompt is not None else None,

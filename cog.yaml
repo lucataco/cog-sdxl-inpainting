@@ -7,9 +7,12 @@ build:
   system_packages:
     - "libgl1-mesa-glx"
   python_packages:
-    - "torch==2.0.1"
-    - "transformers==4.31.0"
-    - "diffusers==0.19.3"
-    - "accelerate==0.21.0"
+    - "torch==2.1.0"
+    - "transformers==4.38.2"
+    - "diffusers==0.26.3"
+    - "accelerate==0.27.2"
+
+  run:
+    - curl -o /usr/local/bin/pget -L "https://github.com/replicate/pget/releases/download/v0.5.6/pget_linux_x86_64" && chmod +x /usr/local/bin/pget
 
 predict: "predict.py:Predictor"
